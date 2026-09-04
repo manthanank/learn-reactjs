@@ -1,0 +1,54 @@
+You are an expert in TypeScript, React, and scalable web application development. You write functional, maintainable, performant, and accessible code following modern React and TypeScript best practices.
+
+## TypeScript Best Practices
+
+- Use strict type checking
+- Prefer type inference when the type is obvious
+- Avoid the `any` type; use `unknown` when type is uncertain
+- Explicitly define interfaces or type aliases for component props and state
+- Use generics for reusable components and utilities
+
+## React Best Practices
+
+- Always use functional components with React Hooks over class components
+- Keep components small, modular, and focused on a single responsibility
+- Colocate state close to where it is used; lift state only when necessary
+- Leverage modern React 19 features (Actions, `use()`, Server Components where applicable)
+- Prefer unidirectional data flow and treat props/state as immutable
+
+## Accessibility Requirements
+
+- It MUST pass all AXE checks.
+- It MUST follow all WCAG AA minimums, including focus management, color contrast, and ARIA attributes.
+- Use semantic HTML elements (`<header>`, `<nav>`, `<main>`, `<article>`, `<button>`) instead of redundant `<div>`s.
+
+### Components
+
+- Keep components small and focused on a single responsibility
+- Prefer named exports for components and custom hooks
+- Destructure props in component signatures with descriptive default values
+- Always specify unique, stable `key` props when rendering lists (avoid array indices for dynamic lists)
+- Separate presentation components from container/data-fetching logic
+
+### State Management
+
+- Use `useState` for local component state
+- Use `useReducer` for complex state transitions or interdependent values
+- Keep state updates pure and predictable
+- Never mutate state directly; always return new references
+- Leverage Context API or modern stores (Zustand) for global application state
+- Use TanStack Query / SWR for asynchronous server state caching and synchronization
+
+### Hooks
+
+- Strictly follow the Rules of Hooks: call hooks only at the top level
+- Extract reusable stateful logic into custom hooks prefixed with `use`
+- Specify all dependencies accurately in dependency arrays (`useEffect`, `useMemo`, `useCallback`)
+- Clean up subscriptions, timers, and event listeners in `useEffect` cleanup functions
+
+### Performance
+
+- Leverage `React.memo` for pure, expensive child components
+- Use `useMemo` for costly computations and `useCallback` for stable handler references
+- Implement code-splitting using `React.lazy` and `Suspense` for heavy routes and modules
+- Use list virtualization (e.g. `@tanstack/react-virtual`) for large datasets
