@@ -3101,6 +3101,264 @@ Tabs.Panel = function TabPanel({ id, children }: { id: string; children: React.R
 
 ## Custom Hooks Pattern
 
+### Complete Production Custom Hooks Encyclopedia
+
+Here is an atomic, production-ready implementation of the most crucial custom hooks in modern React development:
+
+#### 1. `useDebounce` - Rate-limiting expensive effects
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debouncedValue;
+}
+
+// Usage Example:
+// const [search, setSearch] = useState('');
+// const debouncedSearch = useDebounce(search, 300);
+// useEffect(() => { fetchResults(debouncedSearch); }, [debouncedSearch]);
+```
+
+#### 2. `useThrottle` - Throttling rapidly firing events
+```tsx
+import { useState, useEffect, useRef } from 'react';
+
+export function useThrottle<T>(value: T, intervalMs: number): T {
+  const [throttledValue, setThrottledValue] = useState<T>(value);
+  const lastExecuted = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (Date.now() >= lastExecuted.current + intervalMs) {
+      lastExecuted.current = Date.now();
+      setThrottledValue(value);
+    } else {
+      const timerId = setTimeout(() => {
+        lastExecuted.current = Date.now();
+        setThrottledValue(value);
+      }, intervalMs);
+      return () => clearTimeout(timerId);
+    }
+  }, [value, intervalMs]);
+
+  return throttledValue;
+}
+```
+
+#### 3. `useLocalStorage` - Synced Type-Safe Browser Storage
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.warn(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        setStoredValue(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [key]);
+
+  return [storedValue, setValue];
+}
+```
+
+#### 4. `useIntersectionObserver` - Viewport Visibility & Lazy Loading
+```tsx
+import { useState, useEffect, RefObject } from 'react';
+
+export function useIntersectionObserver(
+  elementRef: RefObject<Element | null>,
+  options: IntersectionObserverInit = { threshold: 0.1, root: null, rootMargin: '0px' }
+): IntersectionObserverEntry | null {
+  const [entry, setEntry] = useState<IntersectionObserverEntry | null>(null);
+
+  useEffect(() => {
+    const node = elementRef?.current;
+    if (!node || typeof IntersectionObserver !== 'function') return;
+
+    const observer = new IntersectionObserver(([firstEntry]) => {
+      setEntry(firstEntry);
+    }, options);
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [elementRef, options.threshold, options.root, options.rootMargin]);
+
+  return entry;
+}
+```
+
+#### 5. `useOnClickOutside` - Closing Modals & Dropdowns
+```tsx
+import { useEffect, RefObject } from 'react';
+
+export function useOnClickOutside<T extends HTMLElement = HTMLElement>(
+  ref: RefObject<T | null>,
+  handler: (event: MouseEvent | TouchEvent) => void
+): void {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      const el = ref?.current;
+      if (!el || el.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
+}
+```
+
+#### 6. `useMediaQuery` - Responsive Layout Triggers in JS
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia(query);
+    const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
+
+    mediaQueryList.addEventListener('change', listener);
+    return () => mediaQueryList.removeEventListener('change', listener);
+  }, [query]);
+
+  return matches;
+}
+
+// Usage: const isMobile = useMediaQuery('(max-width: 768px)');
+```
+
+#### 7. `usePrevious` - Inspecting Past Render State
+```tsx
+import { useRef, useEffect } from 'react';
+
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>(undefined);
+
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref.current;
+}
+```
+
+#### 8. `useCopyToClipboard` - Clipboard Write with Auto-Reset Status
+```tsx
+import { useState, useCallback } from 'react';
+
+export function useCopyToClipboard(resetDelayMs: number = 2000): [boolean, (text: string) => Promise<boolean>] {
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  const copy = useCallback(async (text: string): Promise<boolean> => {
+    if (!navigator?.clipboard) {
+      console.warn('Clipboard API not available');
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), resetDelayMs);
+      return true;
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+      setIsCopied(false);
+      return false;
+    }
+  }, [resetDelayMs]);
+
+  return [isCopied, copy];
+}
+```
+
+#### 9. `useLockBodyScroll` - Prevent Background Scroll when Modal Opens
+```tsx
+import { useLayoutEffect } from 'react';
+
+export function useLockBodyScroll(isLocked: boolean = true): void {
+  useLayoutEffect(() => {
+    if (!isLocked) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [isLocked]);
+}
+```
+
+#### 10. `useWhyDidYouUpdate` - Debugging Unnecessary Re-renders
+```tsx
+import { useRef, useEffect } from 'react';
+
+export function useWhyDidYouUpdate(name: string, props: Record<string, any>): void {
+  const previousProps = useRef<Record<string, any>>({});
+
+  useEffect(() => {
+    if (previousProps.current) {
+      const allKeys = Object.keys({ ...previousProps.current, ...props });
+      const changedProps: Record<string, { from: any; to: any }> = {};
+
+      allKeys.forEach((key) => {
+        if (previousProps.current[key] !== props[key]) {
+          changedProps[key] = {
+            from: previousProps.current[key],
+            to: props[key],
+          };
+        }
+      });
+
+      if (Object.keys(changedProps).length > 0) {
+        console.log('[why-did-you-update]', name, changedProps);
+      }
+    }
+    previousProps.current = props;
+  });
+}
+```
+
+
 Extract domain state and handlers into cohesive reusable modules:
 
 ```tsx
@@ -3127,6 +3385,159 @@ export function useDebounce<T>(value: T, delay: number): T {
 ---
 
 ## React 19 Features
+
+### React 19 Next-Generation Patterns & Complete Code Implementations
+
+React 19 introduces native Actions, first-class async resource fetching via `use()`, and optimistic state transitions:
+
+#### 1. `useActionState` - Native Form State and Pending Handling
+```tsx
+import { useActionState } from 'react';
+
+interface FormState {
+  error: string | null;
+  success: boolean;
+  message: string | null;
+}
+
+async function updateProfileName(prevState: FormState, formData: FormData): Promise<FormState> {
+  const newName = formData.get('username') as string;
+  
+  if (!newName || newName.length < 3) {
+    return { error: 'Username must be at least 3 characters', success: false, message: null };
+  }
+
+  // Simulate network mutation
+  await new Promise((res) => setTimeout(res, 800));
+  return { error: null, success: true, message: `Successfully updated to "${newName}"!` };
+}
+
+export function ProfileForm() {
+  const [state, formAction, isPending] = useActionState(updateProfileName, {
+    error: null,
+    success: false,
+    message: null
+  });
+
+  return (
+    <form action={formAction} className="flex flex-col gap-4 p-4 border rounded">
+      <label className="font-medium">Update Display Name</label>
+      <input 
+        name="username" 
+        type="text" 
+        disabled={isPending}
+        placeholder="Enter new name" 
+        className="p-2 border rounded" 
+      />
+      {state.error && <p className="text-red-500 text-sm">{state.error}</p>}
+      {state.success && <p className="text-green-500 text-sm">{state.message}</p>}
+      <button 
+        type="submit" 
+        disabled={isPending}
+        className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+      >
+        {isPending ? 'Saving...' : 'Save Profile'}
+      </button>
+    </form>
+  );
+}
+```
+
+#### 2. `useOptimistic` - Immediate Optimistic UI Feedback
+```tsx
+import { useOptimistic, useState, useTransition } from 'react';
+
+interface Comment {
+  id: string;
+  text: string;
+  pending?: boolean;
+}
+
+export function CommentThread({ initialComments }: { initialComments: Comment[] }) {
+  const [comments, setComments] = useState<Comment[]>(initialComments);
+  const [, startTransition] = useTransition();
+
+  const [optimisticComments, setOptimisticComments] = useOptimistic(
+    comments,
+    (state, newCommentText: string) => [
+      ...state,
+      { id: Math.random().toString(), text: newCommentText, pending: true }
+    ]
+  );
+
+  async function handleAddComment(formData: FormData) {
+    const commentText = formData.get('comment') as string;
+    if (!commentText.trim()) return;
+
+    startTransition(async () => {
+      setOptimisticComments(commentText);
+      // Actual server mutation
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: commentText })
+      });
+      const savedComment = await response.json();
+      setComments((prev) => [...prev, savedComment]);
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <ul className="divide-y">
+        {optimisticComments.map((c) => (
+          <li key={c.id} className={`py-2 ${c.pending ? 'opacity-50 italic' : ''}`}>
+            {c.text} {c.pending && ' (Posting...)'}
+          </li>
+        ))}
+      </ul>
+      <form action={handleAddComment} className="flex gap-2">
+        <input name="comment" required placeholder="Write a comment..." className="border p-2 rounded flex-1" />
+        <button type="submit" className="bg-emerald-600 text-white px-4 py-2 rounded">Submit</button>
+      </form>
+    </div>
+  );
+}
+```
+
+#### 3. `use()` API - Consuming Promises & Context Conditionally
+```tsx
+import { use, Suspense } from 'react';
+
+// Promise caching function
+const userPromiseCache = new Map<string, Promise<{ id: string; name: string }>>();
+
+function getUser(id: string) {
+  if (!userPromiseCache.has(id)) {
+    userPromiseCache.set(
+      id,
+      fetch(`https://api.example.com/users/${id}`).then((res) => res.json())
+    );
+  }
+  return userPromiseCache.get(id)!;
+}
+
+function UserProfile({ userId }: { userId: string }) {
+  // use() unwraps promises inside render, triggering nearest Suspense boundary
+  const user = use(getUser(userId));
+
+  return (
+    <div className="card p-4 shadow rounded bg-white">
+      <h3 className="text-xl font-bold">{user.name}</h3>
+      <p className="text-gray-500">ID: {user.id}</p>
+    </div>
+  );
+}
+
+export function App() {
+  return (
+    <Suspense fallback={<div className="animate-pulse p-4">Loading user profile...</div>}>
+      <UserProfile userId="42" />
+    </Suspense>
+  );
+}
+```
+
 
 React 19 brings foundational enhancements to simplify asynchronous state, server-side data workflows, and form mutations.
 
@@ -3717,6 +4128,264 @@ Allows components to work together sharing internal state implicitly (e.g. `<Acc
 [Back to top⤴️](#table-of-contents)
 
 ### Custom Hooks Pattern
+
+### Complete Production Custom Hooks Encyclopedia
+
+Here is an atomic, production-ready implementation of the most crucial custom hooks in modern React development:
+
+#### 1. `useDebounce` - Rate-limiting expensive effects
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debouncedValue;
+}
+
+// Usage Example:
+// const [search, setSearch] = useState('');
+// const debouncedSearch = useDebounce(search, 300);
+// useEffect(() => { fetchResults(debouncedSearch); }, [debouncedSearch]);
+```
+
+#### 2. `useThrottle` - Throttling rapidly firing events
+```tsx
+import { useState, useEffect, useRef } from 'react';
+
+export function useThrottle<T>(value: T, intervalMs: number): T {
+  const [throttledValue, setThrottledValue] = useState<T>(value);
+  const lastExecuted = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (Date.now() >= lastExecuted.current + intervalMs) {
+      lastExecuted.current = Date.now();
+      setThrottledValue(value);
+    } else {
+      const timerId = setTimeout(() => {
+        lastExecuted.current = Date.now();
+        setThrottledValue(value);
+      }, intervalMs);
+      return () => clearTimeout(timerId);
+    }
+  }, [value, intervalMs]);
+
+  return throttledValue;
+}
+```
+
+#### 3. `useLocalStorage` - Synced Type-Safe Browser Storage
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.warn(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        setStoredValue(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [key]);
+
+  return [storedValue, setValue];
+}
+```
+
+#### 4. `useIntersectionObserver` - Viewport Visibility & Lazy Loading
+```tsx
+import { useState, useEffect, RefObject } from 'react';
+
+export function useIntersectionObserver(
+  elementRef: RefObject<Element | null>,
+  options: IntersectionObserverInit = { threshold: 0.1, root: null, rootMargin: '0px' }
+): IntersectionObserverEntry | null {
+  const [entry, setEntry] = useState<IntersectionObserverEntry | null>(null);
+
+  useEffect(() => {
+    const node = elementRef?.current;
+    if (!node || typeof IntersectionObserver !== 'function') return;
+
+    const observer = new IntersectionObserver(([firstEntry]) => {
+      setEntry(firstEntry);
+    }, options);
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [elementRef, options.threshold, options.root, options.rootMargin]);
+
+  return entry;
+}
+```
+
+#### 5. `useOnClickOutside` - Closing Modals & Dropdowns
+```tsx
+import { useEffect, RefObject } from 'react';
+
+export function useOnClickOutside<T extends HTMLElement = HTMLElement>(
+  ref: RefObject<T | null>,
+  handler: (event: MouseEvent | TouchEvent) => void
+): void {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      const el = ref?.current;
+      if (!el || el.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
+}
+```
+
+#### 6. `useMediaQuery` - Responsive Layout Triggers in JS
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia(query);
+    const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
+
+    mediaQueryList.addEventListener('change', listener);
+    return () => mediaQueryList.removeEventListener('change', listener);
+  }, [query]);
+
+  return matches;
+}
+
+// Usage: const isMobile = useMediaQuery('(max-width: 768px)');
+```
+
+#### 7. `usePrevious` - Inspecting Past Render State
+```tsx
+import { useRef, useEffect } from 'react';
+
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>(undefined);
+
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref.current;
+}
+```
+
+#### 8. `useCopyToClipboard` - Clipboard Write with Auto-Reset Status
+```tsx
+import { useState, useCallback } from 'react';
+
+export function useCopyToClipboard(resetDelayMs: number = 2000): [boolean, (text: string) => Promise<boolean>] {
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  const copy = useCallback(async (text: string): Promise<boolean> => {
+    if (!navigator?.clipboard) {
+      console.warn('Clipboard API not available');
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), resetDelayMs);
+      return true;
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+      setIsCopied(false);
+      return false;
+    }
+  }, [resetDelayMs]);
+
+  return [isCopied, copy];
+}
+```
+
+#### 9. `useLockBodyScroll` - Prevent Background Scroll when Modal Opens
+```tsx
+import { useLayoutEffect } from 'react';
+
+export function useLockBodyScroll(isLocked: boolean = true): void {
+  useLayoutEffect(() => {
+    if (!isLocked) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [isLocked]);
+}
+```
+
+#### 10. `useWhyDidYouUpdate` - Debugging Unnecessary Re-renders
+```tsx
+import { useRef, useEffect } from 'react';
+
+export function useWhyDidYouUpdate(name: string, props: Record<string, any>): void {
+  const previousProps = useRef<Record<string, any>>({});
+
+  useEffect(() => {
+    if (previousProps.current) {
+      const allKeys = Object.keys({ ...previousProps.current, ...props });
+      const changedProps: Record<string, { from: any; to: any }> = {};
+
+      allKeys.forEach((key) => {
+        if (previousProps.current[key] !== props[key]) {
+          changedProps[key] = {
+            from: previousProps.current[key],
+            to: props[key],
+          };
+        }
+      });
+
+      if (Object.keys(changedProps).length > 0) {
+        console.log('[why-did-you-update]', name, changedProps);
+      }
+    }
+    previousProps.current = props;
+  });
+}
+```
+
 
 Extracts all stateful logic from UI views into dedicated, independently testable functions.
 
